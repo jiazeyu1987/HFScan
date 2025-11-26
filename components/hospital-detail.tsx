@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Phone, MapPin, Globe, FileText, Loader2, AlertCircle, Download } from "lucide-react"
+import { ArrowLeft, Phone, MapPin, Globe, FileText, Loader2, AlertCircle, Download, RefreshCw } from "lucide-react"
 
 interface HospitalInfo {
   id: number
@@ -40,6 +40,8 @@ export function HospitalDetail({
   const [editingWebsite, setEditingWebsite] = useState(false)
   const [websiteValue, setWebsiteValue] = useState("")
   const [dateFilter, setDateFilter] = useState("")
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
 
   useEffect(() => {
     // Simulating hospital detail fetch - in real app, would use the API
@@ -69,6 +71,63 @@ export function HospitalDetail({
     // In real app, would call API to update
     if (hospital) {
       setHospital({ ...hospital, website: websiteValue })
+    }
+  }
+
+  const handleRefreshHospitalInfo = async () => {
+    if (!hospital) return
+
+    setRefreshing(true)
+    setRefreshMessage(null)
+    setError(null)
+
+    try {
+      const response = await fetch('http://localhost:8000/hospital/website', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          hospital_name: hospital.name,
+          force_update: true
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      // Update hospital information with the refreshed website data
+      if (data.data) {
+        const hospitalData = data.data;
+        setHospital(prev => prev ? {
+          ...prev,
+          website: hospitalData.new_website || prev.website,
+          // Update other fields if available in the response
+          hospital_name: hospitalData.hospital_name || prev.name,
+        } : null)
+      }
+
+      setRefreshMessage(`医院信息已更新，网站: ${data.data?.new_website || data.data?.previous_website || '未找到'}`)
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setRefreshMessage(null)
+      }, 3000)
+
+    } catch (error) {
+      console.error('刷新医院信息失败:', error)
+      setError(error instanceof Error ? error.message : '刷新医院信息失败')
+
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setError(null)
+      }, 5000)
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -141,7 +200,33 @@ export function HospitalDetail({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Hospital Info Card */}
         <Card className="lg:col-span-1 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">基础信息</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground">基础信息</h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshHospitalInfo}
+              disabled={refreshing}
+              className="gap-2"
+              title="刷新医院信息"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? '刷新中' : '刷新信息'}
+            </Button>
+          </div>
+
+          {/* Refresh Status Messages */}
+          {refreshMessage && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-800">{refreshMessage}</p>
+            </div>
+          )}
+
+          {error && !refreshMessage && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-800">刷新失败: {error}</p>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div>

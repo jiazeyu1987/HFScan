@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -35,7 +35,8 @@ interface Hospital {
   district_id: number
 }
 
-export function HierarchyNav({ onSelectHospital }: { onSelectHospital: (hospitalId: number) => void }) {
+export const HierarchyNav = forwardRef<any, { onSelectHospital: (hospitalId: number) => void }>(
+  ({ onSelectHospital }, ref) => {
   const [provinces, setProvinces] = useState<Province[]>([])
   const [cities, setCities] = useState<City[]>([])
   const [districts, setDistricts] = useState<District[]>([])
@@ -145,6 +146,41 @@ export function HierarchyNav({ onSelectHospital }: { onSelectHospital: (hospital
     )
     setFilteredHospitals(filtered)
   }
+
+  const returnToHospitalList = () => {
+    console.log('🔄 returnToHospitalList called with current state:', {
+      selectedProvince: selectedProvince?.name,
+      selectedCity: selectedCity?.name,
+      selectedDistrict: selectedDistrict?.name,
+      currentTab: activeTab
+    });
+
+    // 如果之前已经选择了区县，直接返回到医院的tab
+    if (selectedDistrict) {
+      console.log('✅ Returning to hospitals tab for district:', selectedDistrict.name);
+      setActiveTab("hospitals");
+    }
+    // 如果只选择了城市但没有区县，返回到区县tab
+    else if (selectedCity) {
+      console.log('✅ Returning to districts tab for city:', selectedCity.name);
+      setActiveTab("districts");
+    }
+    // 如果只选择了省份，返回到城市tab
+    else if (selectedProvince) {
+      console.log('✅ Returning to cities tab for province:', selectedProvince.name);
+      setActiveTab("cities");
+    }
+    // 否则返回到省份tab
+    else {
+      console.log('✅ Returning to provinces tab (no selection)');
+      setActiveTab("provinces");
+    }
+  }
+
+  // 暴露方法给父组件
+  useImperativeHandle(ref, () => ({
+    returnToHospitalList
+  }))
 
   const breadcrumbPath = [
     {
@@ -377,3 +413,6 @@ export function HierarchyNav({ onSelectHospital }: { onSelectHospital: (hospital
     </div>
   )
 }
+)
+
+HierarchyNav.displayName = 'HierarchyNav'
