@@ -84,6 +84,7 @@ export function HospitalDetail({
         address: initialHospital.address,
         phone: initialHospital.phone,
         website: initialHospital.website,
+        base_procurement_link: initialHospital.base_procurement_link,
         beds_count: initialHospital.beds_count || undefined,
         departments: initialHospital.departments || undefined,
       })
@@ -97,6 +98,7 @@ export function HospitalDetail({
         address: "地址信息未获取",
         phone: "电话信息未获取",
         website: undefined,
+        base_procurement_link: undefined,
         beds_count: undefined,
         departments: undefined,
       })
