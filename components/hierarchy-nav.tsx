@@ -32,10 +32,16 @@ interface Hospital {
   address: string
   phone: string
   website?: string
+  base_procurement_link?: string
   district_id: number
 }
 
-export const HierarchyNav = forwardRef<any, { onSelectHospital: (hospitalId: number) => void }>(
+interface HierarchyNavRef {
+  returnToHospitalList: () => void
+  getSelectedHospital: (hospitalId: number) => Hospital | null
+}
+
+export const HierarchyNav = forwardRef<HierarchyNavRef, { onSelectHospital: (hospitalId: number) => void }>(
   ({ onSelectHospital }, ref) => {
   const [provinces, setProvinces] = useState<Province[]>([])
   const [cities, setCities] = useState<City[]>([])
@@ -177,9 +183,17 @@ export const HierarchyNav = forwardRef<any, { onSelectHospital: (hospitalId: num
     }
   }
 
+  const getSelectedHospital = (hospitalId: number): Hospital | null => {
+    console.log('🏥 getSelectedHospital called with ID:', hospitalId);
+    const hospital = hospitals.find(h => h.id === hospitalId) || null;
+    console.log('🏥 Found hospital:', hospital?.name || 'Not found');
+    return hospital;
+  }
+
   // 暴露方法给父组件
   useImperativeHandle(ref, () => ({
-    returnToHospitalList
+    returnToHospitalList,
+    getSelectedHospital
   }))
 
   const breadcrumbPath = [

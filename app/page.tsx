@@ -14,11 +14,19 @@ export default function Home() {
   const [hierarchyPath, setHierarchyPath] = useState<string[]>([])
   const [showHospitalDetail, setShowHospitalDetail] = useState(false)
   const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null)
+  const [selectedHospital, setSelectedHospital] = useState<any>(null)
 
   const hierarchyNavRef = useRef<any>(null)
 
   const handleSelectHospital = (hospitalId: number) => {
+    console.log('🏥 handleSelectHospital called with ID:', hospitalId);
+
+    // Get hospital data from hierarchy nav
+    const hospitalData = hierarchyNavRef.current?.getSelectedHospital(hospitalId);
+    console.log('🏥 Hospital data retrieved:', hospitalData);
+
     setSelectedHospitalId(hospitalId)
+    setSelectedHospital(hospitalData)
     setShowHospitalDetail(true)
   }
 
@@ -26,6 +34,7 @@ export default function Home() {
     console.log('🔙 handleBackFromHospital called');
     setShowHospitalDetail(false)
     setSelectedHospitalId(null)
+    setSelectedHospital(null)
     // 调用层级导航组件的返回医院列表方法
     if (hierarchyNavRef.current) {
       console.log('✅ hierarchyNavRef.current is available, calling returnToHospitalList');
@@ -98,6 +107,7 @@ export default function Home() {
                 hospitalId={selectedHospitalId}
                 onBack={handleBackFromHospital}
                 hierarchyPath={hierarchyPath}
+                initialHospital={selectedHospital}
               />
             )}
           </div>

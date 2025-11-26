@@ -13,8 +13,9 @@ interface HospitalInfo {
   address: string
   phone: string
   website?: string
+  base_procurement_link?: string
   beds_count?: number
-  departments?: string[]
+  departments?: string[] | string | null
 }
 
 interface ProcurementInfo {
@@ -28,10 +29,12 @@ export function HospitalDetail({
   hospitalId,
   onBack,
   hierarchyPath,
+  initialHospital,
 }: {
   hospitalId: number
   onBack: () => void
   hierarchyPath: string[]
+  initialHospital?: HospitalInfo | null
 }) {
   const [hospital, setHospital] = useState<HospitalInfo | null>(null)
   const [procurementInfo, setProcurementInfo] = useState<ProcurementInfo[]>([])
@@ -39,38 +42,136 @@ export function HospitalDetail({
   const [error, setError] = useState<string | null>(null)
   const [editingWebsite, setEditingWebsite] = useState(false)
   const [websiteValue, setWebsiteValue] = useState("")
+  const [editingProcurementLink, setEditingProcurementLink] = useState(false)
+  const [procurementLinkValue, setProcurementLinkValue] = useState("")
   const [dateFilter, setDateFilter] = useState("")
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
+  const [updatingProcurementLink, setUpdatingProcurementLink] = useState(false)
+  const [procurementLinkMessage, setProcurementLinkMessage] = useState<string | null>(null)
+
+  // 安全地处理departments字段
+  const getDepartmentsArray = (hospital: HospitalInfo | null): string[] => {
+    if (!hospital || !hospital.departments) {
+      return []
+    }
+
+    // 如果已经是数组，直接返回
+    if (Array.isArray(hospital.departments)) {
+      return hospital.departments.filter(dept => dept && typeof dept === 'string')
+    }
+
+    // 如果是字符串，尝试分割（假设是逗号或分号分隔）
+    if (typeof hospital.departments === 'string') {
+      return hospital.departments
+        .split(/[,，;；]/)
+        .map(dept => dept.trim())
+        .filter(dept => dept.length > 0)
+    }
+
+    return []
+  }
 
   useEffect(() => {
-    // Simulating hospital detail fetch - in real app, would use the API
-    // For now using mock data
-    setHospital({
-      id: hospitalId,
-      name: "广东省人民医院",
-      level: "三级甲等",
-      address: "广州市越秀区中山二路106号",
-      phone: "020-83827812",
-      website: "www.gdph.org.cn",
-      beds_count: 2800,
-      departments: ["内科", "外科", "妇产科", "儿科", "急诊科", "神经科"],
-    })
+    console.log('🏥 HospitalDetail useEffect called with:', { hospitalId, initialHospital });
 
+    if (initialHospital) {
+      console.log('🏥 Using initial hospital data:', initialHospital.name);
+      setHospital({
+        id: initialHospital.id,
+        name: initialHospital.name,
+        level: initialHospital.level,
+        address: initialHospital.address,
+        phone: initialHospital.phone,
+        website: initialHospital.website,
+        beds_count: initialHospital.beds_count || undefined,
+        departments: initialHospital.departments || undefined,
+      })
+    } else {
+      console.log('🏥 No initial hospital provided, using fallback data for ID:', hospitalId);
+      // Fallback to basic hospital info
+      setHospital({
+        id: hospitalId,
+        name: `医院 ${hospitalId}`,
+        level: "未知",
+        address: "地址信息未获取",
+        phone: "电话信息未获取",
+        website: undefined,
+        beds_count: undefined,
+        departments: undefined,
+      })
+    }
+
+    // TODO: Fetch real procurement info from API
     setProcurementInfo([
-      { id: 1, title: "医疗设备采购招标公告", url: "https://example.com/1", scanned_at: "2025-11-24" },
-      { id: 2, title: "药品集中采购计划", url: "https://example.com/2", scanned_at: "2025-11-23" },
-      { id: 3, title: "检查试剂采购信息", url: "https://example.com/3", scanned_at: "2025-11-22" },
+      { id: 1, title: "采购信息待获取", url: "https://example.com/1", scanned_at: "2025-11-24" },
     ])
 
     setLoading(false)
-  }, [hospitalId])
+  }, [hospitalId, initialHospital])
 
   const handleSaveWebsite = () => {
     setEditingWebsite(false)
     // In real app, would call API to update
     if (hospital) {
       setHospital({ ...hospital, website: websiteValue })
+    }
+  }
+
+  const handleSaveProcurementLink = async () => {
+    if (!hospital) return
+
+    setUpdatingProcurementLink(true)
+    setProcurementLinkMessage(null)
+    setError(null)
+
+    try {
+      const response = await fetch('http://localhost:8000/hospital/base-procurement-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          hospital_name: hospital.name,
+          base_procurement_link: procurementLinkValue
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        setHospital(prev => prev ? {
+          ...prev,
+          base_procurement_link: procurementLinkValue
+        } : null)
+
+        setProcurementLinkMessage(`基础采购链接更新成功`)
+
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setProcurementLinkMessage(null)
+        }, 3000)
+      } else {
+        throw new Error(data.message || '更新失败')
+      }
+
+    } catch (error) {
+      console.error('更新基础采购链接失败:', error)
+      setError(error instanceof Error ? error.message : '更新基础采购链接失败')
+      setProcurementLinkMessage('更新失败，请重试')
+
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setProcurementLinkMessage(null)
+      }, 5000)
+    } finally {
+      setUpdatingProcurementLink(false)
+      setEditingProcurementLink(false)
     }
   }
 
@@ -290,6 +391,87 @@ export function HospitalDetail({
             </div>
 
             <div>
+              <p className="text-sm text-muted-foreground mb-2">基础采购链接</p>
+              {editingProcurementLink ? (
+                <div className="flex gap-2">
+                  <Input
+                    value={procurementLinkValue}
+                    onChange={(e) => setProcurementLinkValue(e.target.value)}
+                    placeholder="输入基础采购链接"
+                    className="text-sm"
+                    disabled={updatingProcurementLink}
+                  />
+                  <Button size="sm" onClick={handleSaveProcurementLink} disabled={updatingProcurementLink}>
+                    {updatingProcurementLink ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        保存中
+                      </>
+                    ) : (
+                      '保存'
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingProcurementLink(false)
+                      setProcurementLinkValue(hospital?.base_procurement_link || "")
+                      setProcurementLinkMessage(null)
+                    }}
+                  >
+                    取消
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-primary" />
+                    {hospital.base_procurement_link ? (
+                      <a
+                        href={hospital.base_procurement_link.startsWith('http')
+                          ? hospital.base_procurement_link
+                          : `https://${hospital.base_procurement_link}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline text-sm"
+                      >
+                        采购平台
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">未设置</span>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditingProcurementLink(true)
+                      setProcurementLinkValue(hospital?.base_procurement_link || "")
+                      setProcurementLinkMessage(null)
+                    }}
+                    className="text-xs"
+                  >
+                    编辑
+                  </Button>
+                </div>
+              )}
+
+              {/* Update Status Messages */}
+              {procurementLinkMessage && (
+                <div className={`p-2 rounded-lg text-sm ${
+                  procurementLinkMessage.includes('成功')
+                    ? 'bg-green-50 border border-green-200 text-green-800'
+                    : procurementLinkMessage.includes('失败') || procurementLinkMessage.includes('错误')
+                    ? 'bg-red-50 border border-red-200 text-red-800'
+                    : 'bg-blue-50 border border-blue-200 text-blue-800'
+                }`}>
+                  {procurementLinkMessage}
+                </div>
+              )}
+            </div>
+
+            <div>
               <p className="text-sm text-muted-foreground mb-1">床位数</p>
               <p className="text-foreground text-sm font-medium">{hospital.beds_count || "暂无"}</p>
             </div>
@@ -297,11 +479,15 @@ export function HospitalDetail({
             <div>
               <p className="text-sm text-muted-foreground mb-2">主要科室</p>
               <div className="flex flex-wrap gap-2">
-                {hospital.departments?.map((dept, i) => (
-                  <span key={i} className="text-xs bg-secondary/50 text-secondary-foreground px-2 py-1 rounded">
-                    {dept}
-                  </span>
-                ))}
+                {getDepartmentsArray(hospital).length > 0 ? (
+                  getDepartmentsArray(hospital).map((dept, i) => (
+                    <span key={i} className="text-xs bg-secondary/50 text-secondary-foreground px-2 py-1 rounded">
+                      {dept}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-muted-foreground">暂无科室信息</span>
+                )}
               </div>
             </div>
           </div>
