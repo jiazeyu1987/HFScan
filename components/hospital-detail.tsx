@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ArrowLeft, Phone, MapPin, Globe, FileText, Loader2, AlertCircle, Download, RefreshCw } from "lucide-react"
 import { API_BASE_URL } from "@/lib/api-config"
 import { ProcurementPagination } from "@/components/procurement-pagination"
+import { useSettings } from "@/lib/settings-context"
 
 interface HospitalInfo {
   id: number
@@ -95,7 +96,16 @@ export function HospitalDetail({
   // 分页相关状态变量
   const [allSearchResults, setAllSearchResults] = useState<ProcurementLinkItem[]>([]) // 存储完整搜索结果
   const [searchCurrentPage, setSearchCurrentPage] = useState(1) // 当前页码
-  const [searchPageSize] = useState(20) // 每页大小（固定为20）
+
+  // 使用设置上下文获取每页大小
+  const { settings } = useSettings()
+
+  // 监听设置变化，当每页数量改变时重置到第一页
+  useEffect(() => {
+    if (hasSearched) {
+      setSearchCurrentPage(1) // 重置到第一页
+    }
+  }, [settings.procurementResultsPerPage, hasSearched])
 
   // 安全地处理departments字段
   const getDepartmentsArray = (hospital: HospitalInfo | null): string[] => {
@@ -361,6 +371,7 @@ export function HospitalDetail({
 
   // 真实搜索结果分页计算
   const searchTotalCount = allSearchResults.length
+  const searchPageSize = settings.procurementResultsPerPage // 使用设置中的页面大小
   const searchTotalPages = Math.max(1, Math.ceil(searchTotalCount / searchPageSize))
   const currentSearchPageSafe = Math.min(searchCurrentPage, searchTotalPages)
 

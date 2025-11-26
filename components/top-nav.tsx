@@ -14,45 +14,16 @@ import {
 } from "@/components/ui/dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-
-interface GlobalSettings {
-  crawlerMaxDepth: number
-  crawlerMaxPages: number
-}
+import { useSettings } from "@/lib/settings-context"
 
 export function TopNav() {
   const [showSettings, setShowSettings] = useState(false)
-  const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({
-    crawlerMaxDepth: 10,
-    crawlerMaxPages: 150
-  })
+  const { settings, updateSettings, resetSettings } = useSettings()
 
   const handleSaveSettings = () => {
-    // 保存设置到本地存储
-    localStorage.setItem('hbscan_global_settings', JSON.stringify(globalSettings))
+    // 设置会自动保存到本地存储（通过context）
     setShowSettings(false)
   }
-
-  const handleLoadSettings = () => {
-    // 从本地存储加载设置
-    try {
-      const savedSettings = localStorage.getItem('hbscan_global_settings')
-      if (savedSettings) {
-        const parsed = JSON.parse(savedSettings)
-        setGlobalSettings({
-          crawlerMaxDepth: parsed.crawlerMaxDepth || 10,
-          crawlerMaxPages: parsed.crawlerMaxPages || 150
-        })
-      }
-    } catch (error) {
-      console.error('加载全局设置失败:', error)
-    }
-  }
-
-  // 组件加载时加载设置
-  useEffect(() => {
-    handleLoadSettings()
-  }, [])
 
   return (
     <>
@@ -89,6 +60,7 @@ export function TopNav() {
 
                 <Card>
                   <CardContent className="space-y-6">
+                    {/* 爬虫配置部分 */}
                     <div className="space-y-4">
                       <Label htmlFor="maxDepth">爬虫配置</Label>
                       <div className="grid grid-cols-2 gap-4">
@@ -99,11 +71,10 @@ export function TopNav() {
                             type="number"
                             min="1"
                             max="50"
-                            value={globalSettings.crawlerMaxDepth}
-                            onChange={(e) => setGlobalSettings(prev => ({
-                              ...prev,
+                            value={settings.crawlerMaxDepth}
+                            onChange={(e) => updateSettings({
                               crawlerMaxDepth: parseInt(e.target.value) || 10
-                            }))}
+                            })}
                             className="w-full px-3 py-2 border border-border rounded-md text-sm"
                           />
                           <p className="text-xs text-muted-foreground">控制爬虫的最大深度 (1-50)</p>
@@ -115,15 +86,40 @@ export function TopNav() {
                             type="number"
                             min="1"
                             max="1000"
-                            value={globalSettings.crawlerMaxPages}
-                            onChange={(e) => setGlobalSettings(prev => ({
-                              ...prev,
+                            value={settings.crawlerMaxPages}
+                            onChange={(e) => updateSettings({
                               crawlerMaxPages: parseInt(e.target.value) || 150
-                            }))}
+                            })}
                             className="w-full px-3 py-2 border border-border rounded-md text-sm"
                           />
                           <p className="text-xs text-muted-foreground">控制爬虫的最大页面数 (1-1000)</p>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* 采购信息显示部分 */}
+                    <div className="space-y-4">
+                      <Label>采购信息显示</Label>
+                      <div className="space-y-2">
+                        <Label htmlFor="procurementResultsPerPage" className="text-xs text-muted-foreground">
+                          每页显示条数
+                        </Label>
+                        <select
+                          id="procurementResultsPerPage"
+                          value={settings.procurementResultsPerPage}
+                          onChange={(e) => updateSettings({
+                            procurementResultsPerPage: parseInt(e.target.value) || 20
+                          })}
+                          className="w-full px-3 py-2 border border-border rounded-md text-sm"
+                        >
+                          <option value={10}>10 条/页</option>
+                          <option value={20}>20 条/页</option>
+                          <option value={50}>50 条/页</option>
+                          <option value={100}>100 条/页</option>
+                        </select>
+                        <p className="text-xs text-muted-foreground">
+                          控制采购信息搜索结果每页显示的数量
+                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -133,23 +129,18 @@ export function TopNav() {
                   <div className="flex flex-col gap-2 w-full">
                     <div className="pt-4 border-t border-border">
                       <p className="text-xs text-muted-foreground mb-4">
-                        爬虫配置将影响网站的深度和广度，较大的值可能需要更长的处理时间。
+                        爬虫配置将影响网站的深度和广度，较大的值可能需要更长的处理时间。采购信息显示设置将立即生效。
                       </p>
                       <div className="flex justify-end space-x-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            setGlobalSettings({
-                              crawlerMaxDepth: 10,
-                              crawlerMaxPages: 150
-                            })
-                          }}
+                          onClick={resetSettings}
                         >
                           重置为默认
                         </Button>
                         <Button size="sm" onClick={handleSaveSettings}>
-                          保存设置
+                          关闭设置
                         </Button>
                       </div>
                     </div>
