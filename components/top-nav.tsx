@@ -122,6 +122,55 @@ export function TopNav() {
                         </p>
                       </div>
                     </div>
+
+                    {/* 采购信息关键词部分 */}
+                    <div className="space-y-4">
+                      <Label>采购信息关键词</Label>
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          配置爬取采购信息时的关键词过滤，只有包含这些关键词的链接才会被记录
+                        </p>
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {settings.procurementKeywords.map((keyword, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={keyword}
+                                onChange={(e) => {
+                                  const newKeywords = [...settings.procurementKeywords]
+                                  newKeywords[index] = e.target.value
+                                  updateSettings({ procurementKeywords: newKeywords })
+                                }}
+                                className="flex-1 px-3 py-2 border border-border rounded-md text-sm"
+                                placeholder="输入关键词"
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const newKeywords = settings.procurementKeywords.filter((_, i) => i !== index)
+                                  updateSettings({ procurementKeywords: newKeywords })
+                                }}
+                                className="px-2 py-1 text-xs"
+                              >
+                                删除
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newKeywords = [...settings.procurementKeywords, '']
+                            updateSettings({ procurementKeywords: newKeywords })
+                          }}
+                          className="w-full"
+                        >
+                          添加关键词
+                        </Button>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 

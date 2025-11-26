@@ -8,6 +8,7 @@ import { ArrowLeft, Phone, MapPin, Globe, FileText, Loader2, AlertCircle, Downlo
 import { API_BASE_URL } from "@/lib/api-config"
 import { ProcurementPagination } from "@/components/procurement-pagination"
 import { useSettings } from "@/lib/settings-context"
+import { HospitalKeywordsEditor } from "./hospital-keywords-editor"
 
 interface HospitalInfo {
   id: number
@@ -93,12 +94,34 @@ export function HospitalDetail({
   const [searchResults, setSearchResults] = useState<ProcurementLinkItem[]>([])
   const [hasSearched, setHasSearched] = useState(false)
 
+  // 新增状态变量用于采购信息爬取刷新
+  const [crawlLoading, setCrawlLoading] = useState(false)
+  const [crawlMessage, setCrawlMessage] = useState<string | null>(null)
+
+  // 医院关键词相关状态
+  const [hospitalKeywords, setHospitalKeywords] = useState<string[]>([])
+  const [isUsingHospitalKeywords, setIsUsingHospitalKeywords] = useState(false)
+
   // 分页相关状态变量
   const [allSearchResults, setAllSearchResults] = useState<ProcurementLinkItem[]>([]) // 存储完整搜索结果
   const [searchCurrentPage, setSearchCurrentPage] = useState(1) // 当前页码
 
   // 使用设置上下文获取每页大小
   const { settings } = useSettings()
+
+  // 获取医院关键词
+  const fetchHospitalKeywords = async (hospitalId: number) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/hospital/${hospitalId}/keywords`)
+      if (response.ok) {
+        const data = await response.json()
+        setHospitalKeywords(data.keywords || [])
+        setIsUsingHospitalKeywords(data.is_custom && data.keywords.length > 0)
+      }
+    } catch (error) {
+      console.error('获取医院关键词失败:', error)
+    }
+  }
 
   // 监听设置变化，当每页数量改变时重置到第一页
   useEffect(() => {
@@ -145,6 +168,9 @@ export function HospitalDetail({
         beds_count: initialHospital.beds_count || undefined,
         departments: initialHospital.departments || undefined,
       })
+
+      // 获取医院关键词
+      fetchHospitalKeywords(initialHospital.id)
     } else {
       console.log('🏥 No initial hospital provided, using fallback data for ID:', hospitalId);
       // Fallback to basic hospital info
@@ -449,6 +475,84 @@ export function HospitalDetail({
     }
   }
 
+  // 采购信息爬取刷新函数
+  const crawlProcurement = async () => {
+    if (!hospital?.base_procurement_link) {
+      setCrawlMessage("该医院未设置基础采购链接，无法爬取采购信息")
+      return
+    }
+
+    setCrawlLoading(true)
+    setCrawlMessage(null)
+
+    try {
+      // 确定使用的关键词：优先使用医院特定关键词，否则使用系统默认关键词
+      let finalKeywords: string[]
+      let keywordSource: string
+
+      if (isUsingHospitalKeywords && hospitalKeywords.length > 0) {
+        finalKeywords = hospitalKeywords.filter(keyword => keyword.trim() !== '')
+        keywordSource = "医院自定义关键词"
+      } else {
+        finalKeywords = settings.procurementKeywords.filter(keyword => keyword.trim() !== '')
+        keywordSource = "系统默认关键词"
+      }
+
+      // 确保至少有默认关键词
+      if (finalKeywords.length === 0) {
+        finalKeywords = ["公告", "采购", "公开", "招标", "询价"]
+        keywordSource = isUsingHospitalKeywords ? "医院默认关键词" : "系统默认关键词"
+      }
+
+      const requestBody = {
+        hospital_id: hospital.id, // 添加医院ID以支持后端关键词优先级
+        base_url: hospital.base_procurement_link,
+        max_depth: settings.crawlerMaxDepth,
+        max_pages: settings.crawlerMaxPages,
+        keywords: finalKeywords
+      }
+
+      const response = await fetch(`${API_BASE_URL}/procurement/crawl`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.base_url) {
+        // 构建关键词信息显示
+        const keywordsInfo = `${keywordSource} (${finalKeywords.join(', ')})`
+        setCrawlMessage(
+          `采购信息爬取成功！发现 ${data.total_urls} 个链接，新增或更新 ${data.new_or_updated} 条记录\n使用关键词: ${keywordsInfo}`
+        )
+
+        // 爬取成功后自动刷新搜索结果
+        setTimeout(() => {
+          searchProcurement()
+        }, 1000)
+      } else {
+        throw new Error('爬取响应格式错误')
+      }
+    } catch (error) {
+      console.error('爬取采购信息失败:', error)
+      setCrawlMessage(`爬取失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    } finally {
+      setCrawlLoading(false)
+
+      // 清除成功消息 5 秒后
+      setTimeout(() => {
+        setCrawlMessage(null)
+      }, 5000)
+    }
+  }
+
   const exportData = () => {
     const data = {
       hospital: hospital,
@@ -721,11 +825,40 @@ export function HospitalDetail({
                 ) : null}
                 搜索
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={crawlProcurement}
+                disabled={crawlLoading}
+                className="gap-2"
+                title="爬取最新的采购信息"
+              >
+                {crawlLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                {crawlLoading ? '爬取中' : '刷新采购信息'}
+              </Button>
               <Button size="sm" onClick={exportData} className="gap-2">
                 <Download className="w-4 h-4" />
                 导出
               </Button>
             </div>
+          </div>
+
+          {/* 医院关键词设置 */}
+          <div className="mt-4">
+            <HospitalKeywordsEditor
+              hospitalId={hospital.id}
+              hospitalName={hospital.hospitalName || hospital.name || ''}
+              onKeywordsUpdated={(keywords) => {
+                // 当关键词更新时，同步更新本地状态
+                setHospitalKeywords(keywords)
+                setIsUsingHospitalKeywords(keywords.length > 0)
+                console.log('关键词已更新:', keywords)
+              }}
+            />
           </div>
 
           <div className="flex gap-2 mb-4">
@@ -752,6 +885,29 @@ export function HospitalDetail({
           </div>
 
           {/* 搜索结果显示区域 */}
+
+          {/* 爬取状态消息显示 */}
+          {crawlMessage && (
+            <div className={`rounded-lg p-3 mb-4 ${
+              crawlMessage.includes('成功')
+                ? 'bg-green-50 border border-green-200'
+                : crawlMessage.includes('失败') || crawlMessage.includes('错误')
+                ? 'bg-red-50 border border-red-200'
+                : 'bg-blue-50 border border-blue-200'
+            }`}>
+              <div className={`flex items-center gap-2 text-sm ${
+                crawlMessage.includes('成功')
+                  ? 'text-green-800'
+                  : crawlMessage.includes('失败') || crawlMessage.includes('错误')
+                  ? 'text-red-800'
+                  : 'text-blue-800'
+              }`}>
+                <RefreshCw className="w-4 h-4" />
+                {crawlMessage}
+              </div>
+            </div>
+          )}
+
           {/* 错误信息显示 */}
           {searchError && (
             <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4">
