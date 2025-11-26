@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useRef, forwardRef, useImperativeHandle } from "react"
+import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from "react"
 import { HierarchyNav } from "@/components/hierarchy-nav"
 import { TaskMonitoring } from "@/components/task-monitoring"
 import { HospitalDetail } from "@/components/hospital-detail"
 import { TopNav } from "@/components/top-nav"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SearchBar, SearchResults } from "@/components/search-components"
+import { SearchHistory } from "@/components/search-history"
 
 export default function Home() {
   const [selectedLevel, setSelectedLevel] = useState<"national" | "province" | "city" | "district" | "hospital">(
@@ -16,7 +18,78 @@ export default function Home() {
   const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null)
   const [selectedHospital, setSelectedHospital] = useState<any>(null)
 
+  // Search related states
+  const [isSearchMode, setIsSearchMode] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchHistory, setSearchHistory] = useState<string[]>([])
+  const [showSearchHistory, setShowSearchHistory] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
+  const [isFromSearch, setIsFromSearch] = useState(false)
+
   const hierarchyNavRef = useRef<any>(null)
+
+  // Load search history from localStorage on component mount
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('hbscan_search_history')
+    if (savedHistory) {
+      try {
+        setSearchHistory(JSON.parse(savedHistory))
+      } catch (error) {
+        console.error('Failed to load search history:', error)
+      }
+    }
+  }, [])
+
+  // Save search history to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('hbscan_search_history', JSON.stringify(searchHistory))
+  }, [searchHistory])
+
+  const addToSearchHistory = (query: string) => {
+    if (!query.trim()) return
+
+    setSearchHistory(prev => {
+      const newHistory = prev.filter(item => item !== query.trim())
+      newHistory.unshift(query.trim())
+      return newHistory.slice(0, 5) // Keep only last 5 searches
+    })
+  }
+
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) return
+
+    setSearchQuery(query)
+    setIsSearching(true)
+    setIsSearchMode(true)
+    setShowSearchHistory(false)
+
+    try {
+      const response = await fetch(`http://localhost:8000/hospitals/search?q=${encodeURIComponent(query.trim())}&limit=50`)
+      if (response.ok) {
+        const data = await response.json()
+        setSearchResults(data.results || [])
+        addToSearchHistory(query.trim())
+      } else {
+        console.error('Search failed:', response.statusText)
+        setSearchResults([])
+      }
+    } catch (error) {
+      console.error('Search error:', error)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleSelectSearchResult = (hospital: any) => {
+    console.log('🏥 handleSelectSearchResult called with hospital:', hospital);
+
+    setSelectedHospitalId(hospital.id)
+    setSelectedHospital(hospital)
+    setShowHospitalDetail(true)
+    setIsFromSearch(true)
+  }
 
   const handleSelectHospital = (hospitalId: number) => {
     console.log('🏥 handleSelectHospital called with ID:', hospitalId);
@@ -28,6 +101,7 @@ export default function Home() {
     setSelectedHospitalId(hospitalId)
     setSelectedHospital(hospitalData)
     setShowHospitalDetail(true)
+    setIsFromSearch(false)
   }
 
   const handleBackFromHospital = () => {
@@ -35,13 +109,38 @@ export default function Home() {
     setShowHospitalDetail(false)
     setSelectedHospitalId(null)
     setSelectedHospital(null)
-    // 调用层级导航组件的返回医院列表方法
-    if (hierarchyNavRef.current) {
-      console.log('✅ hierarchyNavRef.current is available, calling returnToHospitalList');
-      hierarchyNavRef.current.returnToHospitalList()
+
+    if (isFromSearch) {
+      // Return to search results
+      setIsFromSearch(false)
     } else {
-      console.log('❌ hierarchyNavRef.current is not available');
+      // Return to hierarchy navigation
+      // 调用层级导航组件的返回医院列表方法
+      if (hierarchyNavRef.current) {
+        console.log('✅ hierarchyNavRef.current is available, calling returnToHospitalList');
+        hierarchyNavRef.current.returnToHospitalList()
+      } else {
+        console.log('❌ hierarchyNavRef.current is not available');
+      }
     }
+  }
+
+  const handleBackFromSearch = () => {
+    setIsSearchMode(false)
+    setSearchQuery("")
+    setSearchResults([])
+  }
+
+  const handleSelectHistory = (query: string) => {
+    handleSearch(query)
+  }
+
+  const handleClearHistory = () => {
+    setSearchHistory([])
+  }
+
+  const handleCloseHistory = () => {
+    setShowSearchHistory(false)
   }
 
   return (
@@ -63,42 +162,74 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Navigation Tabs - Always rendered but hidden when showing hospital detail */}
-          <Tabs defaultValue="navigation" className={`flex-1 flex flex-col ${showHospitalDetail ? 'hidden' : ''}`}>
-            <div className="border-b border-border">
-              <div className="max-w-7xl mx-auto px-6">
-                <TabsList className="bg-transparent border-b-0 h-auto p-0">
-                  <TabsTrigger
-                    value="navigation"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-                  >
-                    层级导航
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="tasks"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-                  >
-                    任务管理
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-            </div>
+          {/* Search Mode or Navigation Tabs - Always rendered but hidden when showing hospital detail */}
+          <div className={`flex-1 flex flex-col ${showHospitalDetail ? 'hidden' : ''}`}>
+            {!isSearchMode && !showSearchHistory ? (
+              <Tabs defaultValue="navigation" className="flex-1 flex flex-col">
+                <div className="border-b border-border">
+                  <div className="max-w-7xl mx-auto px-6">
+                    <TabsList className="bg-transparent border-b-0 h-auto p-0">
+                      <TabsTrigger
+                        value="navigation"
+                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                      >
+                        层级导航
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="tasks"
+                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                      >
+                        任务管理
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
+                </div>
 
-            <TabsContent value="navigation" className="flex-1 p-6">
-              <div className="max-w-7xl mx-auto">
-                <HierarchyNav
-                  ref={hierarchyNavRef}
-                  onSelectHospital={handleSelectHospital}
-                />
-              </div>
-            </TabsContent>
+                <TabsContent value="navigation" className="flex-1 p-6">
+                  <div className="max-w-7xl mx-auto">
+                    <SearchBar
+                      onSearch={handleSearch}
+                      onShowHistory={() => setShowSearchHistory(true)}
+                      searchHistory={searchHistory}
+                    />
+                    <HierarchyNav
+                      ref={hierarchyNavRef}
+                      onSelectHospital={handleSelectHospital}
+                    />
+                  </div>
+                </TabsContent>
 
-            <TabsContent value="tasks" className="flex-1 p-6">
-              <div className="max-w-7xl mx-auto">
-                <TaskMonitoring />
+                <TabsContent value="tasks" className="flex-1 p-6">
+                  <div className="max-w-7xl mx-auto">
+                    <TaskMonitoring />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            ) : showSearchHistory ? (
+              <div className="flex-1 p-6">
+                <div className="max-w-7xl mx-auto">
+                  <SearchHistory
+                    searchHistory={searchHistory}
+                    onSelectHistory={handleSelectHistory}
+                    onClearHistory={handleClearHistory}
+                    onClose={handleCloseHistory}
+                  />
+                </div>
               </div>
-            </TabsContent>
-          </Tabs>
+            ) : (
+              <div className="flex-1 p-6">
+                <div className="max-w-7xl mx-auto">
+                  <SearchResults
+                    hospitals={searchResults}
+                    searchQuery={searchQuery}
+                    onSelectHospital={handleSelectSearchResult}
+                    onBack={handleBackFromSearch}
+                    loading={isSearching}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Hospital Detail - Always rendered but hidden when showing navigation */}
           <div className={`flex-1 ${!showHospitalDetail ? 'hidden' : ''}`}>
