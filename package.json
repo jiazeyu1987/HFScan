@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "next dev -p 7421",
     "dev:auto": "node scripts/dev-simple.js",
     "dev:full": "node scripts/dev-with-port-check.js",
     "lint": "eslint .",

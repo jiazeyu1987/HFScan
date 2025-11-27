@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Phone, MapPin, Globe, FileText, Loader2, AlertCircle, Download, RefreshCw } from "lucide-react"
+import { ArrowLeft, Phone, MapPin, Globe, FileText, Loader2, AlertCircle, Download, RefreshCw, XCircle } from "lucide-react"
 import { API_BASE_URL } from "@/lib/api-config"
 import { ProcurementPagination } from "@/components/procurement-pagination"
 import { useSettings } from "@/lib/settings-context"
@@ -85,6 +85,8 @@ export function HospitalDetail({
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
   const [updatingProcurementLink, setUpdatingProcurementLink] = useState(false)
   const [procurementLinkMessage, setProcurementLinkMessage] = useState<string | null>(null)
+  const [clearingWebsite, setClearingWebsite] = useState(false)
+  const [clearingProcurementLink, setClearingProcurementLink] = useState(false)
   const [showMockProcurement, setShowMockProcurement] = useState(false)
   const [currentMockPage, setCurrentMockPage] = useState(1)
 
@@ -195,11 +197,63 @@ export function HospitalDetail({
     setLoading(false)
   }, [hospitalId, initialHospital])
 
+  // 计算采购链接状态
+  const hasProcurementLink = hospital?.base_procurement_link &&
+                             hospital.base_procurement_link !== "无" &&
+                             hospital.base_procurement_link.trim() !== ""
+
+  // 计算官网状态
+  const hasWebsite = hospital?.website &&
+                     hospital.website !== "无" &&
+                     hospital.website.trim() !== ""
+
   const handleSaveWebsite = () => {
     setEditingWebsite(false)
     // In real app, would call API to update
     if (hospital) {
       setHospital({ ...hospital, website: websiteValue })
+    }
+  }
+
+  const handleClearWebsite = async () => {
+    if (!hospital) return
+
+    setClearingWebsite(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/hospital/website/clear`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          hospital_id: hospital.id
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Update local state
+        setHospital({ ...hospital, website: "无" })
+        setWebsiteValue("无")
+
+        // Operation completed without alert
+      } else {
+        throw new Error(data.message || '设置失败')
+      }
+
+    } catch (err) {
+      console.error('清除官网失败:', err)
+      // Operation failed without alert
+    } finally {
+      setClearingWebsite(false)
     }
   }
 
@@ -257,6 +311,48 @@ export function HospitalDetail({
     } finally {
       setUpdatingProcurementLink(false)
       setEditingProcurementLink(false)
+    }
+  }
+
+  const handleClearProcurementLink = async () => {
+    if (!hospital) return
+
+    setClearingProcurementLink(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/hospital/base-procurement-link/clear`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          hospital_id: hospital.id
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Update local state
+        setHospital({ ...hospital, base_procurement_link: "无" })
+        setProcurementLinkValue("无")
+
+        // Operation completed without alert
+      } else {
+        throw new Error(data.message || '设置失败')
+      }
+
+    } catch (err) {
+      console.error('清除基础采购链接失败:', err)
+      // Operation failed without alert
+    } finally {
+      setClearingProcurementLink(false)
     }
   }
 
@@ -679,15 +775,17 @@ export function HospitalDetail({
               ) : (
                 <div className="flex items-center gap-2">
                   <Globe className="w-4 h-4 text-primary" />
-                  {hospital.website ? (
+                  {hospital.website && hospital.website !== "无" && hospital.website.trim() !== "" ? (
                     <a
                       href={`https://${hospital.website}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-primary hover:underline text-sm"
+                      className="text-green-600 hover:text-green-700 hover:underline text-sm font-medium"
                     >
                       {hospital.website}
                     </a>
+                  ) : hospital.website === "无" ? (
+                    <span className="text-red-600 text-sm font-medium">无</span>
                   ) : (
                     <span className="text-muted-foreground text-sm">未设置</span>
                   )}
@@ -701,6 +799,20 @@ export function HospitalDetail({
                     className="text-xs"
                   >
                     编辑
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleClearWebsite}
+                    disabled={clearingWebsite}
+                    className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 p-2"
+                    title="设置无官网"
+                  >
+                    {clearingWebsite ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <XCircle className="w-3 h-3" />
+                    )}
                   </Button>
                 </div>
               )}
@@ -743,7 +855,9 @@ export function HospitalDetail({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-primary" />
-                    {hospital.base_procurement_link ? (
+                    {hospital.base_procurement_link === "无" ? (
+                      <span className="text-red-600 text-sm">无采购链接</span>
+                    ) : hospital.base_procurement_link ? (
                       <a
                         href={hospital.base_procurement_link.startsWith('http')
                           ? hospital.base_procurement_link
@@ -769,6 +883,20 @@ export function HospitalDetail({
                     className="text-xs"
                   >
                     编辑
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleClearProcurementLink}
+                    disabled={clearingProcurementLink}
+                    className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 p-2"
+                    title="设置无采购链接"
+                  >
+                    {clearingProcurementLink ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <XCircle className="w-3 h-3" />
+                    )}
                   </Button>
                 </div>
               )}
@@ -810,14 +938,18 @@ export function HospitalDetail({
         </Card>
 
         {/* Procurement Info Card */}
-        <Card className="lg:col-span-2 p-6 space-y-4">
+        <Card className={`lg:col-span-2 p-6 space-y-4 transition-all duration-300 ${
+          hasProcurementLink
+            ? 'opacity-100'
+            : 'opacity-50 bg-gray-50 border-gray-200'
+        }`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground">采购信息</h2>
             <div className="flex gap-2">
               <Button
                 size="sm"
                 onClick={searchProcurement}
-                disabled={searchLoading}
+                disabled={searchLoading || !hasProcurementLink}
                 className="gap-2"
               >
                 {searchLoading ? (
@@ -829,7 +961,7 @@ export function HospitalDetail({
                 size="sm"
                 variant="outline"
                 onClick={crawlProcurement}
-                disabled={crawlLoading}
+                disabled={crawlLoading || !hasProcurementLink}
                 className="gap-2"
                 title="爬取最新的采购信息"
               >
@@ -840,7 +972,12 @@ export function HospitalDetail({
                 )}
                 {crawlLoading ? '爬取中' : '刷新采购信息'}
               </Button>
-              <Button size="sm" onClick={exportData} className="gap-2">
+              <Button
+                size="sm"
+                onClick={exportData}
+                className="gap-2"
+                disabled={!hasProcurementLink}
+              >
                 <Download className="w-4 h-4" />
                 导出
               </Button>
@@ -848,7 +985,7 @@ export function HospitalDetail({
           </div>
 
           {/* 医院关键词设置 */}
-          <div className="mt-4">
+          <div className={`mt-4 ${!hasProcurementLink ? 'opacity-50 pointer-events-none' : ''}`}>
             <HospitalKeywordsEditor
               hospitalId={hospital.id}
               hospitalName={hospital.hospitalName || hospital.name || ''}
@@ -861,7 +998,7 @@ export function HospitalDetail({
             />
           </div>
 
-          <div className="flex gap-2 mb-4">
+          <div className={`flex gap-2 mb-4 ${!hasProcurementLink ? 'opacity-50' : ''}`}>
             <div className="flex-1">
               <label className="block text-xs font-medium text-muted-foreground mb-1">开始时间</label>
               <Input
@@ -870,6 +1007,7 @@ export function HospitalDetail({
                 onChange={(e) => setStartDate(e.target.value)}
                 placeholder="开始时间"
                 className="w-full"
+                disabled={!hasProcurementLink}
               />
             </div>
             <div className="flex-1">
@@ -880,9 +1018,25 @@ export function HospitalDetail({
                 onChange={(e) => setEndDate(e.target.value)}
                 placeholder="结束时间"
                 className="w-full"
+                disabled={!hasProcurementLink}
               />
             </div>
           </div>
+
+          {/* 无采购链接提示信息 */}
+          {!hasProcurementLink && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-3 text-amber-800">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">未设置采购链接</p>
+                  <p className="text-xs mt-1 opacity-90">
+                    请先在基础信息中设置医院的采购链接，然后才能使用采购信息搜索和爬取功能。
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 搜索结果显示区域 */}
 
