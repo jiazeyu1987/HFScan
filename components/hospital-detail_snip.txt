@@ -1,0 +1,48 @@
+                清除
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {filteredProcurement.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>暂无采购信息</p>
+              </div>
+            ) : (
+              filteredProcurement.map((item) => (
+                <div
+                  key={item.id}
+                  className="p-3 border border-border rounded-lg hover:bg-card/80 transition-colors group"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="font-medium text-foreground text-sm group-hover:text-accent transition-colors">
+                        {item.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        扫描时间: {new Date(item.scanned_at).toLocaleDateString("zh-CN")}
+                      </p>
+                    </div>
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline text-xs font-medium whitespace-nowrap"
+                    >
+                      查看详情 �?
+                    </a>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="pt-4 border-t border-border text-xs text-muted-foreground">
+            �?{filteredProcurement.length} 条记�?
+          </div>
+        </Card>
+      </div>
+    </div>
+  )
+}
