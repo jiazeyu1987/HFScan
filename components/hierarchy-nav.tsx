@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChevronRight, MapPin, Search, Loader2, AlertCircle } from "lucide-react"
 import { API_BASE_URL } from "@/lib/api-config"
 import { HospitalDeleteDialog } from "@/components/hospital-delete-dialog"
+import { HospitalStatusBadges } from "@/components/hospital-status-badges"
 
 interface Province {
   id: number
@@ -419,7 +420,14 @@ export const HierarchyNav = forwardRef<HierarchyNavRef, { onSelectHospital: (hos
                         <span className="text-xs bg-accent/20 text-accent px-2 py-1 rounded">{hospital.level}</span>
                       </div>
                       <p className="text-sm text-muted-foreground mb-1">{hospital.address}</p>
-                      <p className="text-sm text-muted-foreground">{hospital.phone}</p>
+                      <p className="text-sm text-muted-foreground mb-2">{hospital.phone}</p>
+
+                      {/* 状态指示器 */}
+                      <HospitalStatusBadges
+                        website={hospital.website}
+                        baseProcurementLink={hospital.base_procurement_link}
+                        className="mb-2"
+                      />
                     </div>
                     <div className="flex items-center gap-2 ml-4">
                       <HospitalDeleteDialog

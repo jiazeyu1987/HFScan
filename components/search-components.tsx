@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Search, Clock, Building2, ArrowLeft } from "lucide-react"
+import { HospitalStatusBadges } from "@/components/hospital-status-badges"
 
 interface Hospital {
   id: number
@@ -157,13 +158,12 @@ export function SearchResults({ hospitals, searchQuery, onSelectHospital, onBack
                 <div className="text-muted-foreground">{hospital.phone}</div>
               </div>
 
-              <div className="flex items-center gap-2">
-                {hospital.website && (
-                  <Badge variant="secondary" className="text-xs">有官网</Badge>
-                )}
-                {hospital.base_procurement_link && (
-                  <Badge variant="outline" className="text-xs">采购平台</Badge>
-                )}
+              {/* 状态指示器 */}
+              <div className="space-y-2">
+                <HospitalStatusBadges
+                  website={hospital.website}
+                  baseProcurementLink={hospital.base_procurement_link}
+                />
                 {hospital.beds_count && (
                   <Badge variant="secondary" className="text-xs">{hospital.beds_count} 床位</Badge>
                 )}
