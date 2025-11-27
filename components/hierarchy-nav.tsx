@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChevronRight, MapPin, Search, Loader2, AlertCircle } from "lucide-react"
 import { API_BASE_URL } from "@/lib/api-config"
+import { HospitalDeleteDialog } from "@/components/hospital-delete-dialog"
 
 interface Province {
   id: number
@@ -141,6 +142,13 @@ export const HierarchyNav = forwardRef<HierarchyNavRef, { onSelectHospital: (hos
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const refreshHospitalList = async () => {
+    // 如果当前选中的是某个区县，重新获取医院列表
+    if (selectedDistrict) {
+      await fetchHospitals(selectedDistrict)
     }
   }
 
@@ -399,11 +407,13 @@ export const HierarchyNav = forwardRef<HierarchyNavRef, { onSelectHospital: (hos
               {filteredHospitals.map((hospital) => (
                 <Card
                   key={hospital.id}
-                  className="p-4 cursor-pointer hover:bg-card/80 hover:border-accent hover:shadow-md transition-all group"
-                  onClick={() => onSelectHospital(hospital.id)}
+                  className="p-4 hover:bg-card/80 hover:border-accent hover:shadow-md transition-all group"
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                    <div
+                      className="flex-1 cursor-pointer"
+                      onClick={() => onSelectHospital(hospital.id)}
+                    >
                       <div className="flex items-center gap-2 mb-2">
                         <p className="font-semibold text-foreground">{hospital.name}</p>
                         <span className="text-xs bg-accent/20 text-accent px-2 py-1 rounded">{hospital.level}</span>
@@ -411,7 +421,17 @@ export const HierarchyNav = forwardRef<HierarchyNavRef, { onSelectHospital: (hos
                       <p className="text-sm text-muted-foreground mb-1">{hospital.address}</p>
                       <p className="text-sm text-muted-foreground">{hospital.phone}</p>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors mt-1" />
+                    <div className="flex items-center gap-2 ml-4">
+                      <HospitalDeleteDialog
+                        hospitalId={hospital.id}
+                        hospitalName={hospital.name}
+                        onDeleteSuccess={refreshHospitalList}
+                      />
+                      <ChevronRight
+                        className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors mt-1 cursor-pointer"
+                        onClick={() => onSelectHospital(hospital.id)}
+                      />
+                    </div>
                   </div>
                 </Card>
               ))}
