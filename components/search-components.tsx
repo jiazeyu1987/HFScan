@@ -55,7 +55,7 @@ export function SearchBar({
 
   const selectHistoryItem = (query: string) => {
     setSearchQuery(query)
-    onSearch(query)
+    onSearch(query, filters)
     setShowHistoryDropdown(false)
   }
 
@@ -104,20 +104,20 @@ export function SearchBar({
               搜索
             </Button>
 
+            <SearchFilters
+              filters={filters}
+              onFiltersChange={onFiltersChange}
+            />
+          </div>
+
+          {/* Search History and Hint Row */}
+          <div className="flex items-center justify-between">
             {searchHistory.length > 0 && (
               <Button variant="outline" onClick={onShowHistory} className="gap-2">
                 <Clock className="w-4 h-4" />
                 搜索历史
               </Button>
             )}
-          </div>
-
-          {/* Filters Row */}
-          <div className="flex items-center justify-between">
-            <SearchFilters
-              filters={filters}
-              onFiltersChange={onFiltersChange}
-            />
 
             {/* Search hint */}
             <div className="text-xs text-muted-foreground">
