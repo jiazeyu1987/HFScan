@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Search, Clock, Building2, ArrowLeft } from "lucide-react"
 import { HospitalStatusBadges } from "@/components/hospital-status-badges"
+import { SearchFilters } from "@/components/search-filters"
+import { type SearchFilters as SearchFiltersType, HOSPITAL_LEVELS, PROCUREMENT_STATUS_OPTIONS } from "@/types/search"
 
 interface Hospital {
   id: number
@@ -21,20 +23,28 @@ interface Hospital {
 }
 
 interface SearchBarProps {
-  onSearch: (query: string) => void
+  onSearch: (query: string, filters?: SearchFiltersType) => void
   onShowHistory: () => void
   searchHistory: string[]
+  filters?: SearchFiltersType
+  onFiltersChange?: (filters: SearchFiltersType) => void
 }
 
-export function SearchBar({ onSearch, onShowHistory, searchHistory }: SearchBarProps) {
+export function SearchBar({
+  onSearch,
+  onShowHistory,
+  searchHistory,
+  filters = { levels: [], procurementStatus: '' },
+  onFiltersChange = () => {}
+}: SearchBarProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [showHistoryDropdown, setShowHistoryDropdown] = useState(false)
 
   const handleSearch = () => {
-    if (searchQuery.trim()) {
-      onSearch(searchQuery.trim())
-      setShowHistoryDropdown(false)
-    }
+    // 允许空查询，只通过过滤器搜索
+    const query = searchQuery.trim()
+    onSearch(query, filters)
+    setShowHistoryDropdown(false)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -52,52 +62,70 @@ export function SearchBar({ onSearch, onShowHistory, searchHistory }: SearchBarP
   return (
     <Card className="mb-6">
       <div className="p-6">
-        <div className="flex gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input
-              placeholder="搜索医院名称..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={handleKeyPress}
-              onFocus={() => setShowHistoryDropdown(true)}
-              className="pl-10"
-            />
+        <div className="space-y-4">
+          {/* Search Input Row */}
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="搜索医院名称或地址..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={handleKeyPress}
+                onFocus={() => setShowHistoryDropdown(true)}
+                className="pl-10"
+              />
 
-            {/* Search History Dropdown */}
-            {showHistoryDropdown && searchHistory.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
-                <div className="p-2">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2 px-2">
-                    <Clock className="w-3 h-3" />
-                    最近搜索
+              {/* Search History Dropdown */}
+              {showHistoryDropdown && searchHistory.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+                  <div className="p-2">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2 px-2">
+                      <Clock className="w-3 h-3" />
+                      最近搜索
+                    </div>
+                    {searchHistory.map((query, index) => (
+                      <button
+                        key={index}
+                        onClick={() => selectHistoryItem(query)}
+                        className="w-full text-left px-2 py-2 text-sm hover:bg-accent hover:text-accent-foreground rounded flex items-center gap-2"
+                      >
+                        <Search className="w-3 h-3 text-muted-foreground" />
+                        {query}
+                      </button>
+                    ))}
                   </div>
-                  {searchHistory.map((query, index) => (
-                    <button
-                      key={index}
-                      onClick={() => selectHistoryItem(query)}
-                      className="w-full text-left px-2 py-2 text-sm hover:bg-accent hover:text-accent-foreground rounded flex items-center gap-2"
-                    >
-                      <Search className="w-3 h-3 text-muted-foreground" />
-                      {query}
-                    </button>
-                  ))}
                 </div>
-              </div>
+              )}
+            </div>
+
+            <Button onClick={handleSearch} className="gap-2">
+              <Search className="w-4 h-4" />
+              搜索
+            </Button>
+
+            {searchHistory.length > 0 && (
+              <Button variant="outline" onClick={onShowHistory} className="gap-2">
+                <Clock className="w-4 h-4" />
+                搜索历史
+              </Button>
             )}
           </div>
 
-          <Button onClick={handleSearch} className="gap-2">
-            <Search className="w-4 h-4" />
-            搜索
-          </Button>
+          {/* Filters Row */}
+          <div className="flex items-center justify-between">
+            <SearchFilters
+              filters={filters}
+              onFiltersChange={onFiltersChange}
+            />
 
-          {searchHistory.length > 0 && (
-            <Button variant="outline" onClick={onShowHistory} className="gap-2">
-              <Clock className="w-4 h-4" />
-              搜索历史
-            </Button>
-          )}
+            {/* Search hint */}
+            <div className="text-xs text-muted-foreground">
+              {searchQuery.trim() === '' && filters.levels.length === 0 && !filters.procurementStatus && (
+                "提示：可以使用过滤器查找特定类型和状态的医院"
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </Card>
@@ -107,18 +135,43 @@ export function SearchBar({ onSearch, onShowHistory, searchHistory }: SearchBarP
 interface SearchResultsProps {
   hospitals: Hospital[]
   searchQuery: string
+  filters?: SearchFiltersType
   onSelectHospital: (hospital: Hospital) => void
   onBack: () => void
   loading?: boolean
 }
 
-export function SearchResults({ hospitals, searchQuery, onSelectHospital, onBack, loading }: SearchResultsProps) {
+export function SearchResults({ hospitals, searchQuery, filters, onSelectHospital, onBack, loading }: SearchResultsProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
+  }
+
+  // 生成搜索描述
+  const getSearchDescription = () => {
+    const parts = []
+
+    if (searchQuery) {
+      parts.push(`关键词 "${searchQuery}"`)
+    }
+
+    if (filters?.levels?.length > 0) {
+      const levelLabels = filters.levels.map(level => {
+        const levelOption = HOSPITAL_LEVELS.find(l => l.value === level)
+        return levelOption?.label || level
+      })
+      parts.push(`医院等级: ${levelLabels.join('、')}`)
+    }
+
+    if (filters?.procurementStatus) {
+      const statusOption = PROCUREMENT_STATUS_OPTIONS.find(s => s.value === filters.procurementStatus)
+      parts.push(`采购链接状态: ${statusOption?.label || filters.procurementStatus}`)
+    }
+
+    return parts.length > 0 ? parts.join(', ') : '所有医院'
   }
 
   return (
@@ -132,7 +185,8 @@ export function SearchResults({ hospitals, searchQuery, onSelectHospital, onBack
 
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Search className="w-4 h-4" />
-          搜索 "{searchQuery}" 找到 <span className="font-medium text-foreground"> {hospitals.length} </span> 家医院
+          <span>{getSearchDescription()}</span>
+          <span>找到 <span className="font-medium text-foreground"> {hospitals.length} </span> 家医院</span>
         </div>
       </div>
 
