@@ -8,6 +8,7 @@ import { TopNav } from "@/components/top-nav"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SearchBar, SearchResults } from "@/components/search-components"
 import { SearchHistory } from "@/components/search-history"
+import { type SearchFilters } from "@/types/search"
 
 export default function Home() {
   const [selectedLevel, setSelectedLevel] = useState<"national" | "province" | "city" | "district" | "hospital">(
@@ -26,6 +27,12 @@ export default function Home() {
   const [showSearchHistory, setShowSearchHistory] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [isFromSearch, setIsFromSearch] = useState(false)
+
+  // Filters related states
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    levels: [],
+    procurementStatus: ''
+  })
 
   const hierarchyNavRef = useRef<any>(null)
 
@@ -56,20 +63,49 @@ export default function Home() {
     })
   }
 
-  const handleSearch = async (query: string) => {
-    if (!query.trim()) return
-
+  const handleSearch = async (query: string, filters?: SearchFilters) => {
+    // 允许空查询，只通过过滤器搜索
     setSearchQuery(query)
     setIsSearching(true)
     setIsSearchMode(true)
     setShowSearchHistory(false)
 
+    // 如果有过滤器，更新过滤器状态
+    if (filters) {
+      setSearchFilters(filters)
+    }
+
     try {
-      const response = await fetch(`http://localhost:8000/hospitals/search?q=${encodeURIComponent(query.trim())}&limit=50`)
+      // 构建API URL参数
+      const params = new URLSearchParams()
+
+      // 如果有查询关键词，添加q参数
+      if (query.trim()) {
+        params.append('q', query.trim())
+        // 添加到搜索历史
+        addToSearchHistory(query.trim())
+      }
+
+      // 添加过滤器参数
+      if (filters?.levels?.length > 0) {
+        params.append('levels', filters.levels.join(','))
+      }
+
+      if (filters?.procurementStatus) {
+        params.append('procurement_status', filters.procurementStatus)
+      }
+
+      // 构建完整URL
+      const url = params.toString()
+        ? `http://localhost:8000/hospitals/search?${params.toString()}`
+        : `http://localhost:8000/hospitals/search`
+
+      console.log('🔍 Making search request to:', url)
+
+      const response = await fetch(url)
       if (response.ok) {
         const data = await response.json()
         setSearchResults(data.results || [])
-        addToSearchHistory(query.trim())
       } else {
         console.error('Search failed:', response.statusText)
         setSearchResults([])
@@ -191,6 +227,8 @@ export default function Home() {
                       onSearch={handleSearch}
                       onShowHistory={() => setShowSearchHistory(true)}
                       searchHistory={searchHistory}
+                      filters={searchFilters}
+                      onFiltersChange={setSearchFilters}
                     />
                     <HierarchyNav
                       ref={hierarchyNavRef}
@@ -222,6 +260,7 @@ export default function Home() {
                   <SearchResults
                     hospitals={searchResults}
                     searchQuery={searchQuery}
+                    filters={searchFilters}
                     onSelectHospital={handleSelectSearchResult}
                     onBack={handleBackFromSearch}
                     loading={isSearching}
