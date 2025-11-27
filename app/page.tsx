@@ -70,6 +70,14 @@ export default function Home() {
     setIsSearchMode(true)
     setShowSearchHistory(false)
 
+    // 打印传入的参数
+    console.log('🔍 Search called with:', { query, filters })
+    console.log('🔍 Filters details:', {
+      levels: filters?.levels,
+      procurementStatus: filters?.procurementStatus,
+      levelsLength: filters?.levels?.length
+    })
+
     // 如果有过滤器，更新过滤器状态
     if (filters) {
       setSearchFilters(filters)
@@ -96,11 +104,13 @@ export default function Home() {
       }
 
       // 构建完整URL
-      const url = params.toString()
-        ? `http://localhost:8000/hospitals/search?${params.toString()}`
+      const paramString = params.toString()
+      const url = paramString
+        ? `http://localhost:8000/hospitals/search?${paramString}`
         : `http://localhost:8000/hospitals/search`
 
       console.log('🔍 Making search request to:', url)
+      console.log('🔍 URL parameters:', paramString)
 
       const response = await fetch(url)
       if (response.ok) {
