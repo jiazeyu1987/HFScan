@@ -104,6 +104,12 @@ export function HospitalDetail({
   const [hospitalKeywords, setHospitalKeywords] = useState<string[]>([])
   const [isUsingHospitalKeywords, setIsUsingHospitalKeywords] = useState(false)
 
+  // 医院名称编辑相关状态
+  const [editingName, setEditingName] = useState(false)
+  const [nameValue, setNameValue] = useState("")
+  const [updatingName, setUpdatingName] = useState(false)
+  const [nameMessage, setNameMessage] = useState<string | null>(null)
+
   // 分页相关状态变量
   const [allSearchResults, setAllSearchResults] = useState<ProcurementLinkItem[]>([]) // 存储完整搜索结果
   const [searchCurrentPage, setSearchCurrentPage] = useState(1) // 当前页码
@@ -187,6 +193,13 @@ export function HospitalDetail({
         beds_count: undefined,
         departments: undefined,
       })
+
+      // Initialize nameValue for editing
+      if (initialHospital?.name) {
+        setNameValue(initialHospital.name)
+      } else {
+        setNameValue(`医院 ${hospitalId}`)
+      }
     }
 
     // TODO: Fetch real procurement info from API
@@ -196,6 +209,13 @@ export function HospitalDetail({
 
     setLoading(false)
   }, [hospitalId, initialHospital])
+
+  // Update nameValue when hospital name changes
+  useEffect(() => {
+    if (hospital?.name && !editingName) {
+      setNameValue(hospital.name)
+    }
+  }, [hospital?.name, editingName])
 
   // 计算采购链接状态
   const hasProcurementLink = hospital?.base_procurement_link &&
@@ -410,6 +430,73 @@ export function HospitalDetail({
       }, 5000)
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  const handleUpdateHospitalName = async () => {
+    if (!hospital || !nameValue.trim()) return
+
+    setUpdatingName(true)
+    setNameMessage(null)
+    setError(null)
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/hospital/${hospital.id}/name`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          hospital_id: hospital.id,
+          name: nameValue.trim()
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        let errorMessage = `HTTP error! status: ${response.status}`
+
+        if (errorData.detail) {
+          if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail
+          } else if (Array.isArray(errorData.detail)) {
+            errorMessage = errorData.detail.map((item: any) =>
+              typeof item === 'string' ? item : item.msg || JSON.stringify(item)
+            ).join('; ')
+          } else if (typeof errorData.detail === 'object') {
+            errorMessage = JSON.stringify(errorData.detail)
+          }
+        }
+
+        throw new Error(errorMessage)
+      }
+
+      const data = await response.json()
+
+      // Update hospital name in local state
+      setHospital(prev => prev ? {
+        ...prev,
+        name: data.new_name
+      } : null)
+
+      setNameMessage(`医院名称已成功更新为: ${data.new_name}`)
+      setEditingName(false)
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setNameMessage(null)
+      }, 3000)
+
+    } catch (error) {
+      console.error('Error updating hospital name:', error)
+      setError(`更新医院名称失败: ${error instanceof Error ? error.message : '未知错误'}`)
+
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setError(null)
+      }, 5000)
+    } finally {
+      setUpdatingName(false)
     }
   }
 
@@ -700,12 +787,77 @@ export function HospitalDetail({
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div>
+        <div className="flex-1">
           <Button onClick={onBack} variant="outline" size="sm" className="mb-4 bg-transparent">
             <ArrowLeft className="w-4 h-4 mr-2" /> 返回
           </Button>
-          <h1 className="text-3xl font-bold text-foreground">{hospital.name}</h1>
-          <p className="text-muted-foreground mt-1">医院详细信息 & 采购数据管理</p>
+
+          {/* Hospital Name with Editing */}
+          <div className="flex items-center gap-3 mb-2">
+            {editingName ? (
+              <div className="flex items-center gap-2 flex-1 max-w-2xl">
+                <Input
+                  value={nameValue}
+                  onChange={(e) => setNameValue(e.target.value)}
+                  placeholder="医院名称"
+                  className="text-3xl font-bold h-12"
+                  disabled={updatingName}
+                />
+                <Button
+                  onClick={handleUpdateHospitalName}
+                  disabled={updatingName || !nameValue.trim()}
+                  size="sm"
+                  className="gap-2"
+                >
+                  {updatingName ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      保存中
+                    </>
+                  ) : (
+                    "保存"
+                  )}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setEditingName(false)
+                    setNameValue(hospital?.name || "")
+                  }}
+                  variant="outline"
+                  size="sm"
+                  disabled={updatingName}
+                >
+                  取消
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-bold text-foreground">{hospital.name}</h1>
+                <Button
+                  onClick={() => {
+                    setEditingName(true)
+                    setNameValue(hospital?.name || "")
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1 opacity-60 hover:opacity-100"
+                  title="编辑医院名称"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  编辑
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Name Update Message */}
+          {nameMessage && (
+            <div className="mb-2 p-2 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-sm text-green-800">{nameMessage}</p>
+            </div>
+          )}
+
+          <p className="text-muted-foreground">医院详细信息 & 采购数据管理</p>
         </div>
         <span className="text-lg font-semibold bg-accent/20 text-accent px-4 py-2 rounded-lg">{hospital.level}</span>
       </div>
